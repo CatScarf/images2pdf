@@ -1,0 +1,47 @@
+{
+  "build": {
+    "beforeDevCommand": "cnpm run dev",
+    "beforeBuildCommand": "cnpm run build",
+    "devPath": "http://localhost:1420",
+    "distDir": "../dist",
+    "withGlobalTauri": false
+  },
+  "package": {
+    "productName": "images2pdf",
+    "version": "0.1"
+  },
+  "tauri": {
+    "allowlist": {
+      "all": false,
+      "shell": {
+        "all": false,
+        "open": true
+      },
+      "fs": {
+        "all": true
+      }
+    },
+    "bundle": {
+      "active": true,
+      "targets": "all",
+      "identifier": "com.hujinzhang.images2pdf",
+      "icon": [
+        "icons/icon.svg",
+        "icons/icon.png",
+        "icons/icon.ico"
+      ]
+    },
+    "security": {
+      "csp": null
+    },
+    "windows": [
+      {
+        "fullscreen": false,
+        "resizable": true,
+        "title": "Images to PDF",
+        "width": 800,
+        "height": 600
+      }
+    ]
+  }
+}
