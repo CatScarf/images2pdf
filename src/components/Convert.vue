@@ -3,10 +3,41 @@ import { onMounted, ref } from "vue";
 import { readDir } from '@tauri-apps/api/fs'
 import { invoke } from "@tauri-apps/api/tauri";
 
+let hasNewFile = false;
+
 onMounted(async () => {
-  const { listen } = await import('@tauri-apps/api/event')
+  const { listen } = await import('@tauri-apps/api/event');
   listen('tauri://file-drop', async (event: any) => {
-    event.payload.forEach(read_path);
+    hasNewFile = false;
+    try {
+
+      // Auto clear
+      if (autoClear.value && files.value.length > 0) {
+        clear();
+      }
+
+      // Read path
+      await Promise.all(event.payload.map(read_path));
+
+      // Auto sort
+      if (autoSort.value && files.value.length > 0) {
+        sort(true);
+      }
+
+      // Auto convert
+      if (hasNewFile) {
+        success.value = false;
+        if (autoConvert.value) {
+          console.log('auto convert');
+          convert();
+        }
+      } else {
+        trigger('zone', 'bounce', 300);
+      }
+
+    } catch (error) {
+      console.error(error);
+    }
   })
 })
 
@@ -18,6 +49,7 @@ const quality = ref<string>("60");
 
 const autoClear = ref<boolean>(true);
 const autoConvert = ref<boolean>(true);
+const autoSort = ref<boolean>(true);
 
 function isImageFormat(filename: string): boolean {
   const imageExtensions = ['.jpg', '.jpeg', '.png', '.bmp', '.gif', '.webp'];
@@ -34,18 +66,13 @@ function addToFiles(path: string) {
 function get_output(path: string) {
   const path_list = path.split(/[\/\\]/);
   const dir = path_list.slice(0, -1).join('/');
-  const name = path_list.slice(-1)[0].split('.')[0];
+  let name = "";
+  name = path_list.slice(-1)[0].split('.')[0];
   return dir + '/' + name + '.pdf';
 }
 
-const zoneBouncing = ref(false);
-
 async function read_path(path: string) {
   console.log(path);
-  if (autoClear.value) {
-    clear();
-  }
-  const files_before = files.value.length;
   try {
     const dirContent = await readDir(path);
     for (let file of dirContent) {
@@ -53,21 +80,42 @@ async function read_path(path: string) {
       try {
         await readDir(path);
       } catch (error) {
+        hasNewFile = true;
         addToFiles(file.path!);
       }
     }
   } catch (error) {
+    hasNewFile = true;
     addToFiles(path);
-  }
-  if (files.value.length == files_before) {
-    zoneBouncing.value = true;
-    setTimeout(() => zoneBouncing.value = false, 300);
-  } else {
+  } finally {
     output.value = get_output(path);
-    success.value = false;
-    if (autoConvert.value) {
-      convert();
-    }
+  }
+}
+
+
+const animationStart: { [key: string]: number } = {};
+
+/**
+ * Applies an animation effect to the element with the specified ID.
+ * @param {string} id - The ID of the element to which the animation effect should be applied.
+ * @param {string} animation - The animation class to apply, defaults to 'running'.
+ * @param {number} duration - The duration of the animation, defaults to 500 milliseconds.
+ */
+
+function trigger(id: string, animation='running', duration=500): void {
+  const targetElement = document.getElementById(id);
+  const key = `${id}-${animation}`;
+  animationStart[key] = Date.now();
+  if (targetElement) {
+    targetElement.classList.remove(animation);
+    targetElement.classList.add(animation);
+    setTimeout(() => {
+      if (Date.now() - animationStart[key] >= duration) {
+        targetElement.classList.remove(animation);
+      }
+    }, duration);
+  } else {
+    console.warn(`Element with id "${id}" not found.`);
   }
 }
 
@@ -76,24 +124,39 @@ function file_name(path: string) {
 }
 
 function clear() {
+  if (files.value.length > 0) {
+    trigger('clear', 'trigger');
+  } else {
+    trigger('clear', 'bounce', 300);
+  }
   files.value = [];
   output.value = "";
   success.value = false;
 }
 
-const convertBouncing = ref(false);
-let convertBouncingStart = 0;
+function sort(force=false) {
+  if (force) {
+    trigger('sort', 'trigger');
+    files.value.sort();
+  } else if (files.value.length > 0) {
+    const befor = JSON.stringify(files.value);
+    files.value.sort();
+    if (befor != JSON.stringify(files.value)) {
+      trigger('sort', 'trigger');
+    } else {
+      trigger('sort', 'bounce', 300);
+    }
+  } else {
+    trigger('sort', 'bounce', 300);
+  }
+  files.value.sort();
+}
 
 async function convert() {
+  const startTime = Date.now();
+
   if (running.value || files.value.length == 0) {
-    convertBouncing.value = false;
-    convertBouncing.value = true;
-    convertBouncingStart = Date.now();
-    setTimeout(() => {
-      if (Date.now() - convertBouncingStart >= 200) {
-        convertBouncing.value = false;
-      }
-    }, 300);
+    trigger('convert', 'bounce', 300);
     return;
   }
 
@@ -112,7 +175,13 @@ async function convert() {
       console.error(error);
       reject(error);
     } finally {
-      running.value = false;
+      const duration = (Date.now() - startTime);
+      console.log('duration: ' + (Date.now() - startTime) / 1000 + 's');
+      if (duration < 500) {
+        setTimeout(() => {running.value = false;}, 500 - duration)
+      } else {
+        running.value = false;
+      }
     }
   })
 }
@@ -121,7 +190,7 @@ async function convert() {
 
 <template>
   <div class="horizon">
-    <div class="card" :class="{'bounce': zoneBouncing }">
+    <div id="zone" class="card">
       <div class="dropzone" :class="{ 'big-success': success }">
         <div v-show="files.length == 0" class="hint">
           Drag and Drop<br>Folder Here
@@ -149,9 +218,18 @@ async function convert() {
           <input class="checkbox" type="checkbox" v-model="autoClear">
         </div>
       </div>
-
-      <button class="option button horizon" @click="clear">
+      <button id="clear" class="option button horizon" @click="clear">
         <div class="icon">↺</div><div>Clear</div>
+      </button>
+
+      <div class="option">
+        <div class="horizon option-title">
+          <div>Auto Sort</div>
+          <input class="checkbox" type="checkbox" v-model="autoSort">
+        </div>
+      </div>
+      <button id="sort" class="option button horizon" @click="sort(false)">
+        <div class="icon">↺</div><div>Sort</div>
       </button>
 
       
@@ -161,20 +239,19 @@ async function convert() {
           <input class="checkbox" type="checkbox" v-model="autoConvert">
         </div>
       </div>
-
-      <button class="option button horizon" :class="{ 'running': running, 'bounce': convertBouncing }" @click="convert">
+      <button id="convert" class="option button horizon" :class="{ 'running': running }" @click="convert">
         <div class="icon">⇨</div><div>Convert</div>
       </button>
-      
-      <div class="option output" :class="{'success': success }">
-        <div class="output-path">{{ output }}</div>
+
+      <div class="option">
+        <div class="output-outer" :class="{'success': success }">
+          <div class="output">
+            <div class="output-path">{{ output }}</div>
+          </div>
       </div>
 
-      <div class="option" style="visibility: hidden">
-        <div class="horizon option-title">
-          <div>placehoder</div>
-        </div>
       </div>
+
 
       <div class="option">
         <div class="horizon option-title">
@@ -232,8 +309,8 @@ div {
   font-size: .5rem;
   white-space: nowrap;
   overflow: auto;
-  height: 100%;
-  width: 100%;
+  width: calc(60 * var(--base));
+  height: calc(80 * var(--base));
   padding: .4rem 0;
 }
 
@@ -256,28 +333,43 @@ div {
   text-align: left;
 }
 
+.output-outer {
+  margin: .6rem 0 0 0;
+  border-radius: 1rem;
+  overflow: hidden;
+}
+
 .output {
   font-size: .6rem;
   min-height: 1.7rem;
+  max-height: 4.2rem;
+  word-break: break-all;
   overflow: auto;
 }
 
 .output-path {
-  padding: .1rem .6rem;
+  padding: .1rem .5rem;
+  line-height: 1rem;
 }
 
 .running {
-  background: linear-gradient(270deg, transparent, rgba(0, 128, 0, 0.526), transparent);
+  background: linear-gradient(270deg, transparent, transparent, rgba(0, 128, 0, 0.526), transparent, transparent);
   background-size: 200% 100%;
-  animation: running-gradient 2s linear infinite;
+  animation: running-gradient .5s linear infinite;
+}
+
+.trigger {
+  background: linear-gradient(270deg, transparent, transparent, rgba(0, 128, 0, 0.526), transparent, transparent);
+  background-size: 200% 100%;
+  animation: running-gradient .5s linear forwards;
 }
 
 @keyframes running-gradient {
   0% {
-    background-position: 100% 0;
+    background-position: 150% 0;
   }
   100% {
-    background-position: -100% 0;
+    background-position: -50% 0;
   }
 }
 
@@ -327,8 +419,8 @@ div {
 }
 
 .success-outer {
-  width: 100%;
-  height: 100%;
+  width: 120%;
+  height: 120%;
   background-color: rgba(173, 205, 170, 0.422);
   color: rgb(94, 129, 88);
   pointer-events: none;
@@ -349,7 +441,7 @@ div {
   width: 8rem;
   font-size: .6rem;
   border-radius: 1rem;
-  margin: .3rem;
+  margin: 0 0 .1rem .4rem;
 }
 
 .option-title {
