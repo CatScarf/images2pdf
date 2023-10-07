@@ -6,7 +6,7 @@ An efficient image sequence to PDF converter that can utilize all CPU cores.
 
 ![Demo](assets/demo.gif)
 
-![Speed](assets/speed.png)
+![Speed](assets/speed-new.png)
 
 ## Get Start
 
