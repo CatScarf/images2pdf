@@ -45,7 +45,7 @@ const files = ref<string[]>([]);
 const output = ref<string>("");
 const running = ref<boolean>(false);
 const success = ref<boolean>(false);
-const quality = ref<string>("60");
+const quality = ref<string>("90");
 
 const autoClear = ref<boolean>(true);
 const autoConvert = ref<boolean>(true);
