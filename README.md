@@ -4,6 +4,10 @@ An efficient image sequence to PDF converter that can utilize all CPU cores.
 
 一个能够利用所有CPU核心的高效图像序列到PDF转换器。
 
+![Demo](assets/demo.gif)
+
+![Speed](assets/speed.png)
+
 ## Get Start
 
 Download the executable file here: https://github.com/CatScarf/images2pdf/releases
