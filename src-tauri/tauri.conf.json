@@ -29,9 +29,14 @@
       "targets": "all",
       "identifier": "com.hujinzhang.images2pdf",
       "icon": [
+        "icons/icon@256.ico",
+        "icons/icon@256.png",
+        "icons/icon@512.png",
+        "icons/icon@1024.icns",
+        "icons/icon@1024.png",
         "icons/icon.svg",
-        "icons/icon.png",
-        "icons/icon.ico"
+        "icons/icon@128.ico",
+        "icons/icon@128.png"
       ]
     },
     "security": {

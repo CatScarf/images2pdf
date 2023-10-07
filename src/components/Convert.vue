@@ -149,7 +149,6 @@ function sort(force=false) {
   } else {
     trigger('sort', 'bounce', 300);
   }
-  files.value.sort();
 }
 
 async function convert() {
